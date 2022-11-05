@@ -82,7 +82,7 @@ app.post('/api/users/:_id/exercises', async function(req, res) {
   try {
 
       // if its invalid id input
-      if (!ObjectId.isValid(req.body[':_id'])) {
+      if (!ObjectId.isValid(req.params._id)) {
           return res.json("User id not valid")
       }
       // check if date is valid
@@ -91,12 +91,12 @@ app.post('/api/users/:_id/exercises', async function(req, res) {
         }
     
       // check if id is in database
-      let findUser = await User.findById(req.body[':_id'])
+      let findUser = await User.findById(req.params._id)
     
       // if it is in database
       if ( findUser ) {
         //get input info
-        const user_id = req.body[':_id'];
+        const user_id = req.params._id;
         const description = req.body.description;
         const duration = parseInt(req.body.duration);
         // set current date if blank
@@ -112,13 +112,15 @@ app.post('/api/users/:_id/exercises', async function(req, res) {
 
         // add and save in database
         const addExercise = new Exercise({
-          user_id: ObjectId(user_id), 
+          user_id: ObjectId(user_id),
           description: description, 
           duration: duration, 
           date: date});
         
         addExercise.save();
+        
         // display info
+    
         return res.json({
                   _id: addExercise.user_id,
                   username: findUser.username,
@@ -139,47 +141,53 @@ app.post('/api/users/:_id/exercises', async function(req, res) {
 })
 
 app.get('/api/users/:_id/logs', async function(req, res) {
+  console.log(`req.query: ${JSON.stringify(req.query)}`);
+  console.log(new Date(req.query.from))  
+  console.log(new Date(req.query.to))
+  console.log(parseInt(req.query.limit))
   try {
     const user_id = req.params._id
     // check if id is in database
-      let findUser = await User.findById(user_id)
+    let findUser = await User.findById(user_id)
+    let filter = {user_id: user_id}
       
     // if it is in databse
     if (findUser) {
-      let filter = {user_id}
-      let dateFilter = {}
-    
-    if (req.query.from) {
-			dateFilter.$gte = new Date(req.query.from);
-		}
+      
+      if ((req.query.from !== undefined && req.query.from !== "") ||  (req.query.to !== undefined && req.query.to !== "")) {
 
-		if (dateFilter.$gte == 'Invalid Date') {
-			return res.json({ error: 'from date is invalid' });
-		}
+          filter.date = {}  
+        
+          if (req.query.from !== undefined && req.query.from !== "") {
+			      filter.date.$gte = new Date(req.query.from);
+		      }
 
-		if (req.query.to) {
-			dateFilter.$lte = new Date(req.query.to);
-		}
+		      if (filter.date.$gte == 'Invalid Date') {
+			      return res.json({ error: 'from date is invalid' });
+		      }
 
-		if (dateFilter.$lte == 'Invalid Date') {
-			return res.json({ error: 'to date is invalid' });
-		}
-	  if (req.query.from || req.query.to) {
-      filter.dateFilter = dateFilter;
-    }
+		      if (req.query.to !== undefined && req.query.to !== "") {
+			      filter.date.$lte = new Date(req.query.to);
+		      }
 
-	  let limit = (req.query.limit !== undefined ?   parseInt(req.query.limit) : 100);
+		      if (filter.date.$lte == 'Invalid Date') {
+			      return res.json({ error: 'to date is invalid' });
+		      }
+      }
+
+	  let limit = (req.query.limit !== undefined ?   parseInt(req.query.limit) : 0);
 
 	  if (isNaN(limit)) {
 		  return res.json({ error: 'limit is not a number' });
 	  }
-      
-      const findUserExercises = await Exercise.find(filter).limit(limit)
+      console.log(filter)
+      const findUserExercises = await Exercise.find(filter).limit(limit).exec()
+      console.log(findUserExercises)
      // display log info
       return res.json({
         username: findUser.username,
         count: findUserExercises.length,
-        _id: user_id,
+        _id: findUserExercises.user_id,
         log: findUserExercises.map((exercise) => {
           return {description: exercise.description,
                   duration: exercise.duration,
